@@ -19,10 +19,29 @@
     var uniqueId = 1;
 
     // 创建消息index队列iframe
-    function _createQueueReadyIframe(doc) {
+    // 在华为某些机型会执行失败导致js抛错，可能因为线程不一致所致，此处hack下，增强容错性
+    // _createQueueReadyIframe4biz 因未出现过，暂不考虑
+    function _createQueueReadyIframe(doc, cb) {
         messagingIframe = doc.createElement('iframe');
         messagingIframe.style.display = 'none';
-        doc.documentElement.appendChild(messagingIframe);
+        try{
+            doc.documentElement.appendChild(messagingIframe);
+            cb()
+        }catch(e){
+            setTimeout(function(){
+                if(doc && doc.documentElement){
+                    doc.documentElement.appendChild(messagingIframe);
+                } else{
+                    
+                    throw new Error('部分功能初始化失败，请返回重试');
+                } 
+                cb();
+                var errmsg = 'delay retry appending for reason:' + e.message;
+                console.log(errmsg);
+                typeof fundebug === 'object' && fundebug.notifyError(errmsg);
+            },1000)
+        }
+        
     }
     //创建消息体队列iframe
     function _createQueueReadyIframe4biz(doc) {
@@ -145,10 +164,13 @@
     };
 
     var doc = document;
-    _createQueueReadyIframe(doc);
-    _createQueueReadyIframe4biz(doc);
-    var readyEvent = doc.createEvent('Events');
-    readyEvent.initEvent('WebViewJavascriptBridgeReady');
-    readyEvent.bridge = WebViewJavascriptBridge;
-    doc.dispatchEvent(readyEvent);
+    _createQueueReadyIframe(doc,function(){
+        // 将_createQueueReadyIframe 改为异步回调
+        _createQueueReadyIframe4biz(doc);
+        var readyEvent = doc.createEvent('Events');
+        readyEvent.initEvent('WebViewJavascriptBridgeReady');
+        readyEvent.bridge = WebViewJavascriptBridge;
+        doc.dispatchEvent(readyEvent);
+    });
+    
 })();
